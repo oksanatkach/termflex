@@ -1,9 +1,9 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable
 from langcodes import Language
 import logging
 from functools import partial
-from __future__ import annotations
 
 from termflex.utils.lang import validated_lang
 from termflex.glossary.loaders import (parse_tbx_to_term_map,
