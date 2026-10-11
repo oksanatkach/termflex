@@ -1,0 +1,4 @@
+from termflex.glossary.loaders.tbx_parser import parse_tbx_to_term_map
+from termflex.glossary.loaders.csv_parser import parse_csv_to_term_map
+from termflex.glossary.loaders.json_parser import parse_json_to_term_map
+from termflex.glossary.loaders.po_parser import parse_po_to_term_map

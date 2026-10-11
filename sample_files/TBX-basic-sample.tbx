@@ -1,0 +1,232 @@
+<?xml version='1.0' encoding="utf-8"?>
+<!-- VERSION HISTORY
+	version 1.1 (2008.12.23) - corrected XCS name to end in .xcs
+	version 1.2 (2009.02.23) - added a context source
+	version 1.3 (2013.05.04) - remove reference to LISA
+	version 1.4 (2017.11.28) - updated to TBX 3.0)
+-->
+<?xml-model href="TBX-Basic_dialect/DCA/TBXcoreStructV03_TBX-Basic_integrated.rng" type="application/xml" schematypens="http://relaxng.org/ns/structure/1.0"?>
+<?xml-model href="TBX-Basic_dialect/DCA/TBX-Basic_DCA.sch" type="application/xml" schematypens="http://purl.oclc.org/dsdl/schematron"?>
+<tbx style="dca" type="TBX-Basic" xml:lang="en-US" xmlns="urn:iso:std:iso:30042:ed-2">
+	<tbxHeader>
+		<fileDesc>
+			<titleStmt>
+				<title>TBX-Basic Sample File</title>
+				<note>This document is a sample TBX-Basic document instance showing various types of
+					terminological entries. The entries in this file are for demonstration purposes
+					only and do not reflect actual terminology data. Any references to real
+					companies are fabricated for demonstration purposes only.</note>
+			</titleStmt>
+			<sourceDesc>
+				<p>This is a sample TBX-Basic file from the Translation Research Group (tbxconvert.gevterm.net).
+				Address any enquiries to akmtrg@gmail.com.</p>
+			</sourceDesc>
+		</fileDesc>
+	</tbxHeader>
+	<text>
+		<body>
+			<!-- NOTE: The data in this file is for demonstration purposes only and the content is fictitious.-->
+
+			<!-- The following is a very simple bilingual entry containing only a source term and a target term. -->
+
+			<conceptEntry id="c5">
+				<langSec xml:lang="en">
+					<termSec>
+						<term>e-mail</term>
+					</termSec>
+				</langSec>
+				<langSec xml:lang="fr">
+
+					<termSec>
+						<term>courriel</term>
+					</termSec>
+				</langSec>
+			</conceptEntry>
+
+			<!-- The following is a simple bilingual entry which adds a part of speech value and a context sentence,
+both highly recommended for the localization industry.-->
+
+			<conceptEntry id="c6">
+				<langSec xml:lang="en">
+					<termSec>
+						<term>federated database</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<descrip type="context">Users and applications interface with the federated
+							database managed by the federated server. </descrip>
+					</termSec>
+				</langSec>
+				<langSec xml:lang="fr">
+					<termSec>
+						<term>base de données fédérée</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<descrip type="context">Une base de données fédérée est une base de données
+							répartie hétérogène constituée de données fédérées, et nécessite donc
+							une architecture qui permet la communication entre les différentes
+							sources de données. </descrip>
+					</termSec>
+				</langSec>
+			</conceptEntry>
+
+			<!-- The following is a more complex trilingual entry that shows multiple English synonyms, with
+usage status values to differentiate their usage, as well as term type values, grammatical gender,
+and a definition with a source at the concept level.
+-->
+
+			<conceptEntry id="c7">
+				<descripGrp>
+					<descrip type="definition">corrective lenses used in eyeglasses to correct
+						presbyopia and other disorders of accommodation, characterised by a gradient
+						of increasing lens power, added to the wearer's correction for the other
+						refractive errors.</descrip>
+					<admin type="source">Wikipedia</admin>
+				</descripGrp>
+				<langSec xml:lang="en">
+					<termSec>
+						<term>progressive lens</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="administrativeStatus">preferredTerm-admn-sts</termNote>
+					</termSec>
+					<termSec>
+						<term>progressive addition lens</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="termType">fullForm</termNote>
+						<termNote type="administrativeStatus">admittedTerm-admn-sts</termNote>
+					</termSec>
+					<termSec>
+						<term>PAL</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="termType">acronym</termNote>
+						<termNote type="administrativeStatus">deprecatedTerm-admn-sts</termNote>
+					</termSec>
+					<termSec>
+						<term>progressive power lens</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="administrativeStatus">admittedTerm-admn-sts</termNote>
+					</termSec>
+					<termSec>
+						<term>graduated lens</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="administrativeStatus">supersededTerm-admn-sts</termNote>
+					</termSec>
+				</langSec>
+				<langSec xml:lang="fr">
+					<termSec>
+						<term>lentille progressive</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="grammaticalGender">feminine</termNote>
+					</termSec>
+				</langSec>
+				<langSec xml:lang="de">
+					<termSec>
+						<term>Gleitsichtglas</term>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="grammaticalGender">masculine</termNote>
+					</termSec>
+				</langSec>
+			</conceptEntry>
+
+
+			<!-- The following two examples demonstrate
+monolingual entries with data categories at various positions of the entry, with
+a cross reference between them. The first entry contains a link to a graphic file.-->
+
+			<conceptEntry id="c1">
+				<descrip type="subjectField">manufacturing</descrip>
+				<descripGrp>
+					<descrip type="definition">This is a sample definition at the entry level.</descrip>
+					<admin type="source">Terminology SIG</admin>
+				</descripGrp>
+				<transacGrp>
+					<transac type="transactionType">origination</transac>
+					<transacNote target="US5001" type="responsibility">Jane</transacNote>
+					<date>2007-07-22</date>
+				</transacGrp>
+				<transacGrp>
+					<transac type="transactionType">modification</transac>
+					<transacNote target="US5002" type="responsibility">John</transacNote>
+					<date>2007-07-23</date>
+				</transacGrp>
+				<note>This is a sample entry with some data categories at the entry level. </note>
+				<ref target="c2" type="relatedConcept">unscheduled operation</ref>
+				<xref target="http://wikipedia.org" type="externalCrossReference">Wikipedia web site</xref>
+				<xref target="http://upload.wikimedia.org/wikipedia/commons/8/80/Wikipedia-logo-v2.svg" type="xGraphic">Wikipedia logo</xref>
+				<langSec xml:lang="en">
+					<termSec>
+						<term>scheduled operation</term>
+						<termNote type="partOfSpeech">verb</termNote>
+						<termNote type="termType">fullForm</termNote>
+						<termNote type="grammaticalGender">masculine</termNote>
+						<termNote type="administrativeStatus">preferredTerm-admn-sts</termNote>
+						<termNote type="geographicalUsage">Canada</termNote>
+						<termNote type="termLocation">menuItem</termNote>
+						<descripGrp>
+						<descrip type="context">One hour is required between scheduled operations.</descrip>
+						<admin type="source">Tivoli Storage Manager Administrator's Guide</admin>
+						</descripGrp>
+						<admin type="customerSubset">IBM</admin>
+						<admin type="source">IBM</admin>
+						<admin type="projectSubset">Tivoli Storage Manager</admin>
+					</termSec>
+				</langSec>
+			</conceptEntry>
+
+			<conceptEntry id="c2">
+				<descrip type="subjectField">manufacturing</descrip>
+				<langSec xml:lang="en">
+					<descrip type="definition">This is a sample definition at the language level.
+						This one has no source information required therefore it is not embedded in
+						a descripGrp.</descrip>
+					<termSec>
+						<term>unscheduled operation</term>
+						<termNote type="termType">fullForm</termNote>
+						<termNote type="grammaticalGender">masculine</termNote>
+						<termNote type="administrativeStatus">admittedTerm-admn-sts</termNote>
+						<termNote type="geographicalUsage">en-US</termNote>
+						<termNote type="partOfSpeech">noun</termNote>
+						<termNote type="termLocation">radioButton</termNote>
+						<descrip type="context">Unscheduled operations should be recorded in a log.</descrip>
+						<admin type="customerSubset">SAX Manufacturing</admin>
+						<admin type="source">Manufacturing Process Manual V2</admin>
+						<admin type="projectSubset">Service department</admin>
+						<admin type="customerSubset">SAX Manufacturing</admin>
+						<admin type="source">Manufacturing Process Manual V2</admin>
+						<admin type="projectSubset">Service department</admin>
+						<transacGrp>
+							<transac type="transactionType">origination</transac>
+							<transacNote target="US5001" type="responsibility">Jane</transacNote>
+							<date>2007-07-22</date>
+						</transacGrp>
+						<transacGrp>
+							<transac type="transactionType">modification</transac>
+							<transacNote target="US5002" type="responsibility">John</transacNote>
+							<date>2007-07-23</date>
+						</transacGrp>
+						<note>This is a sample entry with some data categories at the term or
+							language level</note>
+						<ref target="c1" type="relatedTerm">scheduled operation</ref>
+						<xref target="http://wikipedia.org" type="externalCrossReference">Wikipedia web site</xref>
+					</termSec>
+				</langSec>
+			</conceptEntry>
+
+		</body>
+		<back>
+
+			<!-- Simple example of personal information in the backmatter.  -->
+
+			<refObjectSec type="respPerson">
+				<refObject id="US5001">
+					<item type="fn">Jane Doe</item>
+					<item type="email">jane_doe@mymail.com</item>
+					<item type="role">approver</item>
+				</refObject>
+				<refObject id="US5002">
+					<item type="fn">John Smith</item>
+					<item type="email">john_smith@mymail.com</item>
+					<item type="role">inputter</item>
+				</refObject>
+			</refObjectSec>
+
+		</back>
+	</text>
+</tbx>
