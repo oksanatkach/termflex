@@ -11,9 +11,10 @@ requires-python = ">=3.10"
 license = "MIT"
 dependencies = [
     "pyahocorasick",
+    "langcodes",
     "simplemma",
     "lxml",
-    "polib"
+    "polib",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
