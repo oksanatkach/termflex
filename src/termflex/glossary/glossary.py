@@ -3,6 +3,7 @@ from typing import Callable
 from langcodes import Language
 import logging
 from functools import partial
+from __future__ import annotations
 
 from termflex.utils.lang import validated_lang
 from termflex.glossary.loaders import (parse_tbx_to_term_map,
@@ -10,9 +11,7 @@ from termflex.glossary.loaders import (parse_tbx_to_term_map,
                                        parse_json_to_term_map,
                                        parse_po_to_term_map)
 from termflex.glossary.fast_matcher import build_automaton, find_matches
-
 from termflex.lemmatizers import get_backend, Backend, UnsupportedLanguageError
-
 from termflex.utils.utils import default_normalize
 
 logger = logging.getLogger(__name__)
@@ -66,7 +65,7 @@ class Glossary(object):
                source_lemmatizer: None | str | Backend = None,
                target_lemmatizer: None | str | Backend = None,
                normalize: Callable = default_normalize,
-               tokenize: Callable = None) -> Glossary:
+               tokenize: Callable = None) -> "Glossary":
 
         source_lang = validated_lang(source_lang)
         target_lang = validated_lang(target_lang)
