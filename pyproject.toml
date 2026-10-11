@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "termflex"
+version = "0.0.1"
+description = "Morphology-Aware Term Checking for Translation QA and LLM Output Evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "pyahocorasick",
+    "simplemma",
+    "lxml",
+    "polib"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Linguistic",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+pymorphy3 = ["pymorphy3", "pymorphy3-dicts-uk"]
+pymorphy3-ruzzian = ["pymorphy3", "pymorphy3-dicts-ru"]
+all = ["termflex[pymorphy3, pymorphy3-ruzzian]"]
+test = ["pytest"]
+dev = ["termflex[test]", "build", "twine"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/termflex"]
+
+[project.scripts]
+termflex = "termflex.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.entry-points."termflex.lemmatizers"]
+# add your own lemmatizer here like this:
+# mybackend = "my_package.backend:MyBackend"
+
+[project.urls]
+Homepage = "https://github.com/oksanatkach/termflex"

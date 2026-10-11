@@ -35,4 +35,5 @@ MULTI = [
 ]
 
 GLOSSARY_JSON = {"terms": [{"en": s, "uk": t} for s, t in PAIRS]}
+MULTI_GLOSSARY_JSON = {"terms": [{"en": s, "uk": t} for s, t in MULTI]}
 SCHEMA = {"root": "terms", "source": "en", "target": "uk"}

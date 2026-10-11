@@ -6,7 +6,7 @@ from termflex.utils.lang import InvalidLanguageError
 
 def test_region_and_iso3_spellings_match():
     for code in ["uk", "uk_UA", "ukr", "UK-ua"]:
-        assert get_backend("pymorphy3", code).code == "uk"
+        assert get_backend("pymorphy3", code).lang_code == "uk"
 
 
 def test_pymorphy_rejects_english_with_helpful_message():
@@ -28,6 +28,10 @@ def test_unknown_backend():
 
 def test_instances_are_shared():
     assert get_backend("pymorphy3", "uk") is get_backend("pymorphy3", "uk_UA")
+
+
+def test_different_languages_are_not_shared():
+    assert get_backend("pymorphy3", "uk") is not get_backend("pymorphy3", "ru")
 
 
 def test_simplemma_unsupported_language():

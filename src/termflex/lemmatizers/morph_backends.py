@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Callable, ClassVar, Iterable
 import logging
 from langcodes import Language
+import threading
 
 from termflex.utils.utils import default_normalize
 from termflex.utils.lang import parse_lang, validated_lang, InvalidLanguageError
@@ -22,7 +23,17 @@ __all__ = [
 class UnsupportedLanguageError(ValueError):
     """The chosen backend cannot handle the requested language."""
 
+
 _REGISTRY: dict[str, type["Backend"]] = {}
+_INSTANCES: dict[tuple, Backend] = {}
+_INSTANCES_LOCK = threading.Lock()
+
+
+def clear_backend_cache() -> None:
+    """For tests: forget all cached backend instances."""
+    with _INSTANCES_LOCK:
+        _INSTANCES.clear()
+
 
 def register_backend(cls: type["Backend"]) -> type["Backend"]:
     if cls.name in _REGISTRY:
@@ -61,6 +72,11 @@ class Backend:
     def supports(cls, lang) -> bool:
         supported = cls.supported_languages()
         return supported is None or parse_lang(lang).language in supported
+
+    @classmethod
+    def cache_key(cls, lang) -> str:
+        """What makes two requests equivalent for this backend. Default: the language code."""
+        return lang.language
 
     def _unsupported_message(self, lang) -> str:
         supported = ", ".join(sorted(self.supported_languages() or ()))
@@ -178,7 +194,18 @@ def get_backend(spec: "str | Callable | Backend",
         cls = _REGISTRY[spec]
     except KeyError:
         raise ValueError(f"Unknown backend {spec!r}. Available: {', '.join(sorted(_REGISTRY))}.") from None
-    return cls(lang, normalize, tokenize)
+
+    key = (cls, cls.cache_key(lang), normalize, tokenize)
+    try:
+        hash(key)
+    except TypeError:               # an unhashable callable: skip the cache
+        return cls(lang, normalize, tokenize)
+
+    with _INSTANCES_LOCK:
+        inst = _INSTANCES.get(key)
+        if inst is None:
+            inst = _INSTANCES[key] = cls(lang, normalize, tokenize)
+    return inst
 
 
 def available_backends() -> dict[str, list[str] | None]:

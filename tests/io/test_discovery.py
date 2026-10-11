@@ -1,7 +1,7 @@
 import pytest
 
 from termflex.io.io import FORMAT_SUFFIXES, collect_files, format_of, process_many
-from corpus import LAYOUTS, write_corpus
+from .corpus import LAYOUTS, write_corpus
 from tests.io.fake_checkers import make_fake_checker
 
 ALL = ["po", "xliff", "csv", "json"]

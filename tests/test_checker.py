@@ -21,13 +21,13 @@ from termflex.checker import (
 )
 from termflex.utils.doc import Doc
 from termflex.utils.offsets import OffsetMap
-from tests import GLOSSARY_JSON, SCHEMA, en_lem, uk_lem
+from tests import MULTI_GLOSSARY_JSON, SCHEMA, en_lem, uk_lem
 
 
 @pytest.fixture(scope="module")
 def checker():
     glossary = Glossary.from_json(
-        GLOSSARY_JSON, "en", "uk", schema=SCHEMA, source_lemmatizer=en_lem, target_lemmatizer=uk_lem
+        MULTI_GLOSSARY_JSON, "en", "uk", schema=SCHEMA, source_lemmatizer=en_lem, target_lemmatizer=uk_lem
     )
     return Checker(glossary)
 

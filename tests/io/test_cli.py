@@ -3,7 +3,7 @@ import json
 import pytest
 
 from termflex import cli
-from corpus import write_corpus
+from .corpus import write_corpus
 from tests.io.fake_checkers import FakeChecker
 
 COLS = ["--source-field", "en", "--target-field", "fr"]
