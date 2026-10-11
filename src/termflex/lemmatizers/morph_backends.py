@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import importlib
+import os
 import re
+import sys
 from functools import lru_cache
 from typing import Callable, ClassVar, Iterable
 import logging
 from langcodes import Language
 import threading
+from importlib.metadata import entry_points
 
 from termflex.utils.utils import default_normalize
 from termflex.utils.lang import parse_lang, validated_lang, InvalidLanguageError
@@ -15,9 +19,11 @@ from termflex.utils.lang import parse_lang, validated_lang, InvalidLanguageError
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "Backend", "UnsupportedLanguageError", "register_backend",
-    "get_backend", "available_backends", "backends_for",
+    "Backend", "UnsupportedLanguageError", "register_backend", "register_function",
+    "get_backend", "available_backends", "backends_for", "resolve_backend_spec",
 ]
+
+ENTRY_POINT_GROUP = "termflex.lemmatizers"
 
 
 class UnsupportedLanguageError(ValueError):
@@ -26,7 +32,11 @@ class UnsupportedLanguageError(ValueError):
 
 _REGISTRY: dict[str, type["Backend"]] = {}
 _INSTANCES: dict[tuple, Backend] = {}
-_INSTANCES_LOCK = threading.Lock()
+_INSTANCES_LOCK = threading.RLock()      # reentrant: a backend constructor may trigger plugin loading
+
+_PLUGINS_LOADED = False                  # True once every entry point has been tried (or failed)
+_PLUGINS_LOADING = False                 # True while a plugin import is in progress (re-entry guard)
+_PLUGINS_LOCK = threading.RLock()
 
 
 def clear_backend_cache() -> None:
@@ -40,6 +50,55 @@ def register_backend(cls: type["Backend"]) -> type["Backend"]:
         raise ValueError(f"Backend {cls.name!r} is already registered.")
     _REGISTRY[cls.name] = cls
     return cls
+
+
+def register_function(name=None, *, languages=None):
+    """Decorator: register fn(text, lang_code) -> list[str] | str as a named backend.
+
+        @register_function                                   # backend name = function name
+        @register_function("hunspell-r", languages={"uk"})   # explicit name / languages
+    """
+    def decorate(fn, backend_name):
+        def __init__(self, lang, normalize, tokenize=None):
+            CallableBackend.__init__(self, fn, lang, normalize, tokenize)
+
+        register_backend(type(f"FunctionBackend[{backend_name}]", (CallableBackend,), {
+            "name": backend_name,
+            "languages": frozenset(languages) if languages else None,
+            "__init__": __init__,
+        }))
+        return fn                       # the function stays an ordinary callable function
+
+    if callable(name):                  # bare @register_function
+        return decorate(name, name.__name__)
+    return lambda fn: decorate(fn, name or fn.__name__)
+
+
+def _load_plugins() -> None:
+    """Import every module advertised under the ``termflex.lemmatizers`` entry-point group.
+
+    Importing a plugin module runs its ``@register_backend`` / ``@register_function`` decorators,
+    which is what actually registers the backends. Runs at most once per process, lazily: only when
+    a backend name is not found, or when the registry is listed. A plugin that fails to import is
+    logged and skipped; it never stops the others.
+    """
+    global _PLUGINS_LOADED, _PLUGINS_LOADING
+    if _PLUGINS_LOADED:
+        return
+    with _PLUGINS_LOCK:
+        if _PLUGINS_LOADED or _PLUGINS_LOADING:   # LOADING: a plugin's import called back into us
+            return
+        _PLUGINS_LOADING = True
+        try:
+            for ep in entry_points(group=ENTRY_POINT_GROUP):
+                try:
+                    ep.load()
+                except Exception:
+                    logger.warning("Could not load termflex backend plugin %r (%s)",
+                                   ep.name, ep.value, exc_info=True)
+        finally:
+            _PLUGINS_LOADING = False
+            _PLUGINS_LOADED = True
 
 
 def _missing(name: str, extra: str) -> ImportError:
@@ -190,10 +249,12 @@ def get_backend(spec: "str | Callable | Backend",
         return spec
     if callable(spec):
         return CallableBackend(spec, lang, normalize, tokenize)
-    try:
-        cls = _REGISTRY[spec]
-    except KeyError:
-        raise ValueError(f"Unknown backend {spec!r}. Available: {', '.join(sorted(_REGISTRY))}.") from None
+    cls = _REGISTRY.get(spec)
+    if cls is None:
+        _load_plugins()                 # the name may come from an installed plugin
+        cls = _REGISTRY.get(spec)
+    if cls is None:
+        raise ValueError(f"Unknown backend {spec!r}. Available: {', '.join(sorted(_REGISTRY))}.")
 
     key = (cls, cls.cache_key(lang), normalize, tokenize)
     try:
@@ -210,6 +271,7 @@ def get_backend(spec: "str | Callable | Backend",
 
 def available_backends() -> dict[str, list[str] | None]:
     """{"pymorphy3": ["ru", "uk"], "simplemma": [...] or None if unknown}"""
+    _load_plugins()
     out = {}
     for name, cls in sorted(_REGISTRY.items()):
         langs = cls.supported_languages()
@@ -219,5 +281,68 @@ def available_backends() -> dict[str, list[str] | None]:
 
 def backends_for(lang) -> list[str]:
     """Names of registered backends that can handle ``lang`` (unknown-support ones included)."""
+    _load_plugins()
     lang = validated_lang(lang).language
     return [name for name, cls in sorted(_REGISTRY.items()) if cls.supports(lang)]
+
+
+def resolve_backend_spec(spec: str):
+    """Turn a command-line style string into something ``get_backend`` / ``Glossary`` accepts.
+
+    ``"auto"``              -> ``"auto"`` (passed through untouched)
+    ``"pymorphy3"``         -> ``"pymorphy3"`` (a registered backend name, checked to exist)
+    ``"my_mod:my_func"``    -> the function ``my_func`` (used as a custom lemmatizer, nothing registered)
+    ``"my_mod:MyBackend"``  -> the registered name of the ``Backend`` subclass (registered here if the
+                               module did not already do it with ``@register_backend``)
+
+    The module is imported from the installed environment or the current directory, so any
+    ``@register_backend`` / ``@register_function`` decorators in it run as a side effect.
+    """
+    if not isinstance(spec, str) or not spec.strip():
+        raise ValueError("empty backend specification")
+    spec = spec.strip()
+
+    if spec == "auto":
+        return spec
+
+    if ":" not in spec:
+        _load_plugins()
+        if spec not in _REGISTRY:
+            raise ValueError(f"Unknown backend {spec!r}. Available: {', '.join(sorted(_REGISTRY))}, auto; "
+                             f"or give a 'module:name' path.")
+        return spec
+
+    module_name, _, attr_path = spec.partition(":")
+    if not (module_name and attr_path and all(part.isidentifier() for part in module_name.split("."))
+            and all(part.isidentifier() for part in attr_path.split("."))):
+        raise ValueError(f"Invalid backend path {spec!r}: expected 'package.module:name'.")
+
+    cwd = os.getcwd()
+    if cwd not in sys.path:         # like gunicorn / uvicorn: let people point at a file next to them
+        sys.path.insert(0, cwd)
+    try:
+        obj = importlib.import_module(module_name)
+    except ImportError as e:
+        raise ImportError(f"Cannot import module {module_name!r} from {spec!r}: {e}") from e
+    for part in attr_path.split("."):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            raise ValueError(f"Module {module_name!r} has no attribute {attr_path!r}.") from None
+
+    if isinstance(obj, type) and issubclass(obj, Backend):
+        name = getattr(obj, "name", None)
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"{spec!r}: Backend subclasses need a 'name' class attribute.")
+        existing = _REGISTRY.get(name)
+        if existing is None:
+            register_backend(obj)
+        elif existing is not obj:
+            raise ValueError(f"{spec!r}: the backend name {name!r} is already used by another backend.")
+        return name
+    if isinstance(obj, Backend):
+        raise ValueError(f"{spec!r} is a Backend instance; instances are tied to one language. "
+                         f"Point at the class or at a function instead.")
+    if callable(obj):
+        return obj
+    raise ValueError(f"{spec!r} is neither a Backend subclass nor a function.")

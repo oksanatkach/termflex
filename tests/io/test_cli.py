@@ -4,15 +4,17 @@ import pytest
 
 from termflex import cli
 from .corpus import write_corpus
-from tests.io.fake_checkers import FakeChecker
+from .fake_checkers import FakeChecker
 
 COLS = ["--source-field", "en", "--target-field", "fr"]
+
+pytestmark = pytest.mark.usefixtures("glossary_cwd")
 
 
 @pytest.fixture(autouse=True)
 def fake_checker(monkeypatch):
     # --workers 1 keeps everything in-process, so the monkeypatched factory is never pickled
-    monkeypatch.setattr(cli, "make_checker", lambda tbx, src, tgt: FakeChecker())
+    monkeypatch.setattr(cli, "make_checker", lambda glossary, src, tgt, *a, **k: FakeChecker())
 
 
 def run(*args):
