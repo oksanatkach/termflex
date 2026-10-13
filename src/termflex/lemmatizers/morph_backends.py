@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
+from pathlib import Path
 import os
 import re
 import sys
+import inspect
 from functools import lru_cache
 from typing import Callable, ClassVar, Iterable
 import logging
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "Backend", "UnsupportedLanguageError", "register_backend", "register_function",
-    "get_backend", "available_backends", "backends_for", "resolve_backend_spec",
+    "get_backend", "available_backends", "backends_for", "resolve_backend_spec", "load_plugin",
 ]
 
 ENTRY_POINT_GROUP = "termflex.lemmatizers"
@@ -45,9 +48,26 @@ def clear_backend_cache() -> None:
         _INSTANCES.clear()
 
 
+def _origin_of(obj) -> tuple[str | None, str]:
+    """Where a backend was defined: (real source file, qualified name).
+    The same file imported under two module names gives the same origin."""
+    try:
+        path = os.path.realpath(inspect.getfile(obj))
+    except TypeError:                         # built-in or dynamically created
+        path = None
+    return path, obj.__qualname__
+
+
 def register_backend(cls: type["Backend"]) -> type["Backend"]:
-    if cls.name in _REGISTRY:
-        raise ValueError(f"Backend {cls.name!r} is already registered.")
+    origin = cls.__dict__.get("_origin") or _origin_of(cls)
+    existing = _REGISTRY.get(cls.name)
+    if existing is not None:
+        if existing._origin != origin:
+            logger.warning(
+                "Backend %r defined at %s:%s is ignored: the name is already registered by %s:%s.",
+                cls.name, origin[0], origin[1], existing._origin[0], existing._origin[1])
+        return cls      # leave the class itself untouched; just don't register it
+    cls._origin = origin
     _REGISTRY[cls.name] = cls
     return cls
 
@@ -346,3 +366,27 @@ def resolve_backend_spec(spec: str):
     if callable(obj):
         return obj
     raise ValueError(f"{spec!r} is neither a Backend subclass nor a function.")
+
+
+def load_plugin(spec: str) -> None:
+    """Import a module by name ('my_pkg.backends') or by file path ('./my_backends.py')
+    so that its @register_backend decorators run. Loading the same plugin twice is a no-op."""
+    if spec.endswith(".py"):
+        path = Path(spec).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"plugin file not found: {path}")
+        name = f"termflex_plugin_{path.stem}"
+        if name in sys.modules:              # already loaded: don't register twice
+            return
+        mod_spec = importlib.util.spec_from_file_location(name, path)
+        if mod_spec is None or mod_spec.loader is None:
+            raise ImportError(f"cannot load plugin file {path}")
+        module = importlib.util.module_from_spec(mod_spec)
+        sys.modules[name] = module
+        try:
+            mod_spec.loader.exec_module(module)
+        except BaseException:
+            del sys.modules[name]            # a failed import must not look loaded
+            raise
+    else:
+        importlib.import_module(spec)        # Python caches modules, so repeats are no-ops

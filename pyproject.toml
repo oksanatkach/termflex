@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "termflex"
-version = "0.0.1"
+version = "0.2.0"
 description = "Morphology-Aware Term Checking for Translation QA and LLM Output Evaluation"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,10 +37,6 @@ termflex = "termflex.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[project.entry-points."termflex.lemmatizers"]
-# add your own lemmatizer here like this:
-# mybackend = "my_package.backend:MyBackend"
 
 [project.urls]
 Homepage = "https://github.com/oksanatkach/termflex"

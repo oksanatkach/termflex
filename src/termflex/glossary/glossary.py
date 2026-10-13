@@ -145,13 +145,13 @@ class Glossary(object):
     @classmethod
     def from_json(cls, input_json, source_lang, target_lang, schema, encoding = None, **kwargs):
         '''
+        input_json can be either a path to a file or a dict / list
+
         Provide a json schema like this:
         schema = {
             "root": "data.items",
-            "pairs": {
-                "source": "translations.sourceTerms",
-                "target": "translations.targetTerms"
-            }
+            "source": "translations.sourceTerms",
+            "target": "translations.targetTerms"
         }
         '''
         args = {"encoding": encoding} if encoding else {}

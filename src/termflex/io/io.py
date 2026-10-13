@@ -4,9 +4,12 @@ import json
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from pprint import pformat
 from typing import Callable, Iterator
+from dataclasses import asdict, is_dataclass
+import warnings
 
-from termflex import Checker
+from termflex import Checker, RenderedTermMatch
 
 from .input_loaders.csv_input_parser import load_csv_units
 from .input_loaders.json_input_parser import load_json_units
@@ -27,13 +30,11 @@ SUPPORTED_SUFFIXES = set().union(*FORMAT_SUFFIXES.values())
 # Per-worker state, set once by the pool initializer instead of being
 # pickled and shipped with every file.
 _checker: Checker | None = None
-_field_options: dict | None = None
 
 
-def _init_worker(checker_factory: Callable[[], Checker], field_options: dict | None) -> None:
-    global _checker, _field_options
+def _init_worker(checker_factory: Callable[[], Checker]) -> None:
+    global _checker
     _checker = checker_factory()
-    _field_options = field_options
 
 
 def load_units(path: Path, field_options: dict | None = None) -> Iterator[dict]:
@@ -58,24 +59,19 @@ def load_units(path: Path, field_options: dict | None = None) -> Iterator[dict]:
 
 
 def check_file(path: Path, checker: Checker | None = None,
-               field_options: dict | None = None) -> list[dict]:
+               field_options: dict | None = None, render: bool = False) -> list[dict]:
     checker = checker or _checker
-    field_options = field_options if field_options is not None else _field_options
     results = []
 
     for unit in load_units(path, field_options):
         if not unit["target"]:
             continue
 
-        # check() returns one TermMatch per source term found, matched or not,
-        # so keep only the ones that failed.
-        failed = [
-            m for m in checker.check(source_text=unit["source"],
-                                     target_text=unit["target"])
-            if not m.match
-        ]
+        matches = checker.check(source_text=unit["source"], target_text=unit["target"], render=render)
+        failed = [m for m in matches if not m.match]
+        succeeded = [m for m in matches if m.match]
 
-        if failed:
+        if matches:
             results.append({
                 "file": str(path),
                 "line": unit["lineno"],
@@ -84,19 +80,17 @@ def check_file(path: Path, checker: Checker | None = None,
                 "source": unit["source"],
                 "target": unit["target"],
                 # plain dicts so the result is picklable and JSON-serializable
-                "issues": [
-                    {"term": m.source_term, "expected": m.expected_targets}
-                    for m in failed
-                ],
+                "failed": failed,
+                "succeeded": succeeded,
             })
 
     return results
 
 
-def _safe_check_file(path: Path) -> tuple[Path, list[dict], str | None]:
+def _safe_check_file(path: Path, render, field_options) -> tuple[Path, list[dict], str | None]:
     # One broken file must not kill the whole run.
     try:
-        return path, check_file(path), None
+        return path, check_file(path=path, render=render, field_options=field_options), None
     except Exception as e:  # noqa: BLE001
         return path, [], f"{type(e).__name__}: {e}"
 
@@ -133,7 +127,7 @@ def collect_files(path, formats=None) -> list[Path]:
 
 def process_many(path, checker_factory: Callable[[], Checker],
                  field_options: dict | None = None, max_workers: int | None = None,
-                 formats=None):
+                 formats=None, render: bool = False) -> list[dict]:
     """checker_factory must be a module-level function (or functools.partial of one)
     so it can be pickled on spawn platforms (macOS/Windows).
 
@@ -147,13 +141,13 @@ def process_many(path, checker_factory: Callable[[], Checker],
     errors: dict[str, str] = {}
 
     if max_workers == 1:  # easy debugging, no subprocesses
-        _init_worker(checker_factory, field_options)
-        outcomes = (_safe_check_file(f) for f in files)
+        _init_worker(checker_factory)
+        outcomes = (_safe_check_file(f, render, field_options) for f in files)
     else:
         ex = ProcessPoolExecutor(max_workers=max_workers,
                                  initializer=_init_worker,
-                                 initargs=(checker_factory, field_options))
-        futures = [ex.submit(_safe_check_file, f) for f in files]
+                                 initargs=(checker_factory,))
+        futures = [ex.submit(_safe_check_file, f, render, field_options) for f in files]
         outcomes = (f.result() for f in as_completed(futures))
 
     try:
@@ -169,9 +163,22 @@ def process_many(path, checker_factory: Callable[[], Checker],
     return all_results, errors
 
 
-def print_report(results: list[dict]) -> None:
+def print_report(results: list[dict], show_ok: bool=True) -> None:
+    """Print the segments with missing terms; with show_ok, also the correct matches."""
+    matches = [m for r in results for m in r["failed"] + r["succeeded"]]
+    if matches and not any(isinstance(m, RenderedTermMatch) for m in matches):
+        warnings.warn(
+            "Results are not rendered; run checker.check(..., render=True) "
+            "to see the terms marked in the text.",
+            stacklevel=2,
+        )
+
     current = None
     for r in results:
+        shown = r["failed"] + (r["succeeded"] if show_ok else [])
+        if not shown:
+            continue                      # nothing to show: skip the segment's headers too
+
         if r["file"] != current:
             current = r["file"]
             print(f"\n=== {current}")
@@ -179,23 +186,41 @@ def print_report(results: list[dict]) -> None:
         print(f"\n  line {r['line']}{form}")
         if r["context"]:
             print(f"  CTX: {r['context']}")
-        print(f"  SRC: {r['source']}")
-        print(f"  TGT: {r['target']}")
-        for i in r["issues"]:
-            print(f"  MISSING: {i['term']!r} -> expected one of {i['expected']}")
+
+        for m in shown:
+            status = m.match_type.upper() if m.match else "MISSING"
+            print(f"    [{status}] {m.source_term!r} -> {m.found_targets or m.expected_targets}")
+            if isinstance(m, RenderedTermMatch):
+                if m.source_rendered:
+                    print(f"      SRC: {m.source_rendered}")
+                    print(f"      TGT: {m.target_rendered}")
+                print(f"      SRC lemmas: {m.source_lemmas_rendered}")
+                print(f"      TGT lemmas: {m.target_lemmas_rendered}")
+            else:
+                print(f"      SRC: {r['source']}")
+                print(f"      TGT: {r['target']}")
 
 
-def save_json(results: list[dict], path) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+def save_json(results: list[dict], path, encoding="utf-8") -> None:
+    def to_json(obj):
+        if is_dataclass(obj):
+            return asdict(obj)
+        raise TypeError(f"{type(obj).__name__} is not JSON serializable")
+
+    with open(path, "w", encoding=encoding) as f:
+        json.dump(results, f, ensure_ascii=False, indent=2, default=to_json)
 
 
 def summarize(results: list[dict], errors: dict[str, str] | None = None) -> dict:
-    by_term = Counter(i["term"] for r in results for i in r["issues"])
+    by_term = Counter(i.source_term for r in results for i in r["failed"])
+    succeeded_count = sum(len(r["succeeded"]) for r in results)
+    failed_count = sum(by_term.values())
+
     return {
-        "total_issues": sum(by_term.values()),
-        "units_with_issues": len(results),
-        "files_with_issues": len({r["file"] for r in results}),
+        "accuracy":  1.0 if not failed_count else failed_count / (succeeded_count + failed_count),
+        "total_issues": failed_count,
+        "total_string_pairs": len(results),
+        "total_files": len({r["file"] for r in results}),
         "top_missing_terms": by_term.most_common(10),
         "files_failed_to_parse": errors or {},
     }
