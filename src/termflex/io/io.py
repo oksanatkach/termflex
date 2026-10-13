@@ -189,6 +189,7 @@ def print_report(results: list[dict], show_ok: bool=True) -> None:
 
         for m in shown:
             status = m.match_type.upper() if m.match else "MISSING"
+            print(m)
             print(f"    [{status}] {m.source_term!r} -> {m.found_targets or m.expected_targets}")
             if isinstance(m, RenderedTermMatch):
                 if m.source_rendered:

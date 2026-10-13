@@ -16,7 +16,7 @@ def test_load_units_dispatch_errors(tmp_path):
         load_units(tmp_path / "a.txt")
 
 
-def test_check_file_keeps_only_failures_and_skips_empty_targets(tmp_path):
+def test_check_file_reports_term_segments_and_skips_empty_targets(tmp_path):
     p = tmp_path / "a.csv"
     p.write_text("en,fr\n"
                  "Send e-mail,Envoyer le courriel\n"   # ok
@@ -25,16 +25,21 @@ def test_check_file_keeps_only_failures_and_skips_empty_targets(tmp_path):
                  "Hello,Bonjour\n",                    # no glossary term -> nothing to report
                  encoding="utf-8")
     results = check_file(p, FakeChecker(), FIELD_OPTIONS)
-    assert [r["line"] for r in results] == [3]
-    assert results[0]["issues"] == [{"term": "e-mail", "expected": ["courriel"]}]
-    assert set(results[0]) == {"file", "line", "plural_index", "context", "source", "target", "issues"}
+
+    assert [r["line"] for r in results] == [2, 3]
+
+    ok, fail = results
+    assert ok["failed"] == []
+    assert [m.source_term for m in ok["succeeded"]] == ["e-mail"]
+    assert [m.source_term for m in fail["failed"]] == ["e-mail"]
+    assert fail["succeeded"] == []
 
 
 def test_results_match_the_known_failure_count(tmp_path):
     write_corpus(tmp_path, n_files=8, units_per_file=9)       # 2 files per format
     results, errors = process_many(tmp_path, make_fake_checker, FIELD_OPTIONS, max_workers=1, formats=ALL)
     assert errors == {}
-    assert sum(len(r["issues"]) for r in results) == 8 * expected_failures(9)
+    assert sum(len(r["failed"]) for r in results) == 8 * expected_failures(9)
     assert len({r["file"] for r in results}) == 8
 
 
@@ -59,7 +64,7 @@ def test_one_broken_file_does_not_kill_the_run(tmp_path):
         assert set(errors) == {str(broken), str(wrong_cols)}
         assert "JSONDecodeError" in errors[str(broken)]
         assert "not found" in errors[str(wrong_cols)]
-        assert sum(len(r["issues"]) for r in results) == 8 * expected_failures(6)
+        assert sum(len(r["failed"]) for r in results) == 8 * expected_failures(6)
 
 
 def test_csv_without_field_options_is_an_error_per_file(tmp_path):
@@ -75,7 +80,7 @@ def test_end_to_end_on_any_layout(tmp_path, layout):
     write_corpus(tmp_path, n_files=8, units_per_file=6, layout=layout)
     results, errors = process_many(tmp_path, make_fake_checker, FIELD_OPTIONS, max_workers=2, formats=ALL)
     assert errors == {}
-    assert sum(len(r["issues"]) for r in results) == 8 * expected_failures(6)
+    assert sum(len(r["failed"]) for r in results) == 8 * expected_failures(6)
 
 
 def test_format_selection_limits_what_is_processed(tmp_path):
@@ -84,4 +89,4 @@ def test_format_selection_limits_what_is_processed(tmp_path):
                                    max_workers=1, formats=["po"])
     assert errors == {}
     assert {r["file"][-3:] for r in results} == {".po"}
-    assert sum(len(r["issues"]) for r in results) == 2 * expected_failures(6)
+    assert sum(len(r["failed"]) for r in results) == 2 * expected_failures(6)
